@@ -46,6 +46,41 @@ def ce_dice(input, target, weight=None):
     loss = 0.5 * ce_loss + 0.5 * dice_loss_
     return loss
 
+def sensoy_edl_loss(logits, target):
+    """
+    Sensoy Evidential Deep Learning loss (MSE version)
+    logits: [B,2,H,W]
+    target: [B,H,W]
+    """
+
+    # Evidence
+    evidence = F.softplus(logits)
+
+    # Dirichlet parameters
+    alpha = evidence + 1.0
+
+    # Sum of alpha
+    S = torch.sum(alpha, dim=1, keepdim=True)
+
+    # Expected class probabilities
+    probs = alpha / S
+
+    # One-hot labels
+    target_oh = class2one_hot(target, 2).float()
+
+    # Data fitting term
+    mse = torch.sum((target_oh - probs) ** 2, dim=1)
+
+    # Variance term
+    var = torch.sum(
+        probs * (1.0 - probs) / (S + 1.0),
+        dim=1
+    )
+
+    loss = (mse + var).mean()
+
+    return loss
+
 def hybrid_loss(predictions, target, weight=[0,2,0.2,0.2,0.2,0.2]):
     """Calculating the loss"""
     loss = 0

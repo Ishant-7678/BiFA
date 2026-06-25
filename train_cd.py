@@ -20,8 +20,12 @@ torch.cuda.manual_seed_all(2023)  # 为所有GPU设置随机种子
 
 if __name__ == '__main__':
     parser =argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='E:\PycharmProject\BiFA\config\whu.json',
-                        help='JSON file for configuration')
+    parser.add_argument(
+    '--config',
+    type=str,
+    default='config/clcd_bifa.json',
+    help='JSON file for configuration'
+)
     parser.add_argument('--phase', type=str, default='train',
                         choices=['train', 'test'], help='Run either train(training + validation) or testing',)
     parser.add_argument('--gpu_ids', type=str, default=None)
@@ -116,11 +120,20 @@ if __name__ == '__main__':
                 train_im2 = train_data['B'].to(device)
                 pred_img = cd_model(train_im1, train_im2)
                 gt = train_data['L'].to(device).long()
-                train_loss = loss_fun(pred_img, gt)
+
+                existing_loss = loss_fun(pred_img, gt)
+
+                edl_loss = sensoy_edl_loss(pred_img, gt)
+
+                lambda_edl = 0.1
+
+                train_loss = existing_loss + lambda_edl * edl_loss
+
                 optimer.zero_grad()
                 train_loss.backward()
                 optimer.step()
                 log_dict['loss'] = train_loss.item()
+                log_dict['edl_loss'] = edl_loss.item()
 
                 #pred score
                 G_pred = pred_img.detach()
@@ -132,9 +145,14 @@ if __name__ == '__main__':
                 if current_step % opt['train']['train_print_iter'] == 0:
                     # message
                     logs = log_dict
-                    message = '[Training CD]. epoch: [%d/%d]. Itter: [%d/%d], CD_loss: %.5f, running_mf1: %.5f\n' % \
-                              (current_epoch, opt['train']['n_epoch'] - 1, current_step, len(train_loader), logs['loss'],
-                               logs['running_acc'])
+                    message = '[Training CD]. epoch: [%d/%d]. Itter: [%d/%d], Total_loss: %.5f, EDL_loss: %.5f, running_mf1: %.5f\n' % \
+                    (current_epoch,
+                    opt['train']['n_epoch'] - 1,
+                    current_step,
+                    len(train_loader),
+                    logs['loss'],
+                    logs['edl_loss'],
+                    logs['running_acc'])
                     logger.info(message)
                     #vis
                     out_dict = OrderedDict()
