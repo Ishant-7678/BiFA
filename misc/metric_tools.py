@@ -123,7 +123,10 @@ def cm2score(confusion_matrix):
 
     freq = sum_a1 / (hist.sum() + np.finfo(np.float32).eps)
     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
-
+    # Cohen's Kappa
+    po = acc
+    pe = np.sum(sum_a1 * sum_a0) / ((hist.sum() ** 2) + np.finfo(np.float32).eps)
+    kappa = (po - pe) / (1 - pe + np.finfo(np.float32).eps)
     #
     cls_iou = dict(zip(['iou_'+str(i) for i in range(n_class)], iu))
 
@@ -131,7 +134,7 @@ def cm2score(confusion_matrix):
     cls_recall = dict(zip(['recall_'+str(i) for i in range(n_class)], recall))
     cls_F1 = dict(zip(['F1_'+str(i) for i in range(n_class)], F1))
 
-    score_dict = {'acc': acc, 'miou': mean_iu, 'mf1':mean_F1}
+    score_dict = {'acc': acc, 'miou': mean_iu, 'mf1':mean_F1,'kappa': kappa}
     score_dict.update(cls_iou)
     score_dict.update(cls_F1)
     score_dict.update(cls_precision)

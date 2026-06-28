@@ -310,18 +310,64 @@ if __name__ == '__main__':
             # cd_model.load_state_dict(cpkt_state, strict=False) #True
             cd_model.to(device)
             metric.clear()
+
+            # ===== EDL START =====
+            
+            all_evidence = []
+            
+            all_uncertainty = []
+            
+            # ===== EDL END =====
+            
             cd_model.eval()
             with torch.no_grad():
                 for current_step, test_data in enumerate(test_loader):
                     test_img1 = test_data['A'].to(device)
                     test_img2 = test_data['B'].to(device)
                     pred_img = cd_model(test_img1, test_img2)
+                    prob = torch.softmax(pred_img, dim=1)
+
+                    flood_prob = prob[:,1,:,:]
+                    flood_prob_img = Metrics.tensor2img(
+                    flood_prob.unsqueeze(1).repeat(1, 3, 1, 1),
+                    out_type=np.uint8,
+                    min_max=(0, 1)
+                    )
+
+                    # ===== EDL START =====
+                    evidence = torch.relu(pred_img)
+                    alpha = evidence + 1
+
+                    num_classes = 2
+                    uncertainty = num_classes / alpha.sum(dim=1)
+                    uncertainty_img = Metrics.tensor2img(
+                    uncertainty.unsqueeze(1).repeat(1, 3, 1, 1),
+                    out_type=np.uint8,
+                    min_max=(0, 1)
+                    )
+ 
+                    all_evidence.append(evidence.mean().item())
+                    all_uncertainty.append(uncertainty.mean().item())
+                    # ===== EDL END =====
+
                     gt = test_data['L'].to(device).long()
 
                     # pred score
                     G_pred = pred_img.detach()
                     G_pred = torch.argmax(G_pred, dim=1)
-                    current_score = metric.update_cm(pr=G_pred.cpu().numpy(), gt=gt.detach().cpu().numpy())
+                    
+                    error_map = (G_pred != gt).float()
+                    
+                    error_img = Metrics.tensor2img(
+                        error_map.unsqueeze(1).repeat(1, 3, 1, 1),
+                        out_type=np.uint8,
+                        min_max=(0, 1)
+                    )
+                    
+                    current_score = metric.update_cm(
+                        pr=G_pred.cpu().numpy(),
+                        gt=gt.detach().cpu().numpy()
+                    )
                     log_dict['running_acc'] = current_score.item()
 
                     logs = log_dict
@@ -356,6 +402,18 @@ if __name__ == '__main__':
                             pred_cm, '{}/img_pred_cm{}.png'.format(test_result_path, current_step))
                         Metrics.save_img(
                             gt_cm, '{}/img_gt_cm{}.png'.format(test_result_path, current_step))
+                        Metrics.save_img(
+                        flood_prob_img,
+                         '{}/probability_{}.png'.format(test_result_path, current_step)
+                        )
+                        Metrics.save_img(
+                        uncertainty_img,
+                       '{}/uncertainty_{}.png'.format(test_result_path, current_step)
+                        )
+                        Metrics.save_img(
+                        error_img,
+                        '{}/error_{}.png'.format(test_result_path, current_step)
+                        )
                     else:
                         # grid img
                         visuals['pred_cm'] = visuals['pred_cm'] * 2.0 - 1.0
@@ -368,6 +426,13 @@ if __name__ == '__main__':
                         grid_img = Metrics.tensor2img(grid_img)  # uint8
                         Metrics.save_img(
                             grid_img, '{}/img_A_B_pred_gt_{}.png'.format(test_result_path, current_step))
+                # ===== EDL START =====
+                mean_evidence = np.mean(all_evidence)
+                mean_uncertainty = np.mean(all_uncertainty)
+
+                logger_test.info(f"Mean Evidence: {mean_evidence:.4f}")
+                logger_test.info(f"Mean Uncertainty: {mean_uncertainty:.4f}")
+                # ===== EDL END =====
 
                 ### log epoch status ###
                 scores = metric.get_scores()
