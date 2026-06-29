@@ -109,6 +109,7 @@ if __name__ == '__main__':
             cd_model.train()
             train_result_path = '{}/train/{}'.format(opt['path_cd']['result'], current_epoch)
             os.makedirs(train_result_path, exist_ok=True)
+            print("Total batches:", len(train_loader), flush=True)
 
             #################
             #    Training   #
@@ -116,6 +117,7 @@ if __name__ == '__main__':
             message = 'lr: %0.7f\n \n' % optimer.param_groups[0]['lr']
             logger.info(message)
             for current_step, train_data in enumerate(train_loader):
+                print(f"STEP: {current_step}", flush=True)
                 train_im1 = train_data['A'].to(device)
                 train_im2 = train_data['B'].to(device)
                 pred_img = cd_model(train_im1, train_im2)
@@ -143,6 +145,7 @@ if __name__ == '__main__':
 
                 # log running batch status
                 if current_step % opt['train']['train_print_iter'] == 0:
+                    print(f"===== LOG BLOCK HIT ===== Step={current_step}", flush=True)
                     # message
                     logs = log_dict
                     message = '[Training CD]. epoch: [%d/%d]. Itter: [%d/%d], Total_loss: %.5f, EDL_loss: %.5f, running_mf1: %.5f\n' % \
@@ -153,6 +156,7 @@ if __name__ == '__main__':
                     logs['loss'],
                     logs['edl_loss'],
                     logs['running_acc'])
+                    print(message, flush=True)
                     logger.info(message)
                     #vis
                     out_dict = OrderedDict()
